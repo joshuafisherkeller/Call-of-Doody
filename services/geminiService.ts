@@ -1,14 +1,13 @@
 import { GoogleGenAI } from "@google/genai";
 import { Coordinates, SearchResult, RestroomPlace, GroundingChunk } from '../types';
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-
 // Filter out generic markers that aren't specific businesses
 const isGenericRestroomTitle = (title: string): boolean => {
   const genericTerms = [
     'restroom', 'public restroom', 'bathroom', 'public bathroom', 
     'toilet', 'public toilet', 'men\'s room', 'women\'s room', 
-    'wc', 'comfort station', 'lavatory', 'mens room', 'womens room'
+    'wc', 'comfort station', 'lavatory', 'mens room', 'womens room',
+    'restrooms', 'toilets'
   ];
   const lowerTitle = title.toLowerCase().trim();
   return genericTerms.some(term => lowerTitle === term || lowerTitle === `public ${term}`);
@@ -16,7 +15,10 @@ const isGenericRestroomTitle = (title: string): boolean => {
 
 export const findRestroomsNearby = async (coords: Coordinates): Promise<SearchResult> => {
   try {
+    // Initialize client inside the function to ensure process.env is ready and prevent top-level crashes
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const model = 'gemini-2.5-flash';
+    
     const prompt = `
       I am currently located at Latitude: ${coords.latitude}, Longitude: ${coords.longitude}.
 
@@ -26,6 +28,7 @@ export const findRestroomsNearby = async (coords: Coordinates): Promise<SearchRe
       1. STRICTLY limit results to the immediate walking vicinity (within 500-800 meters or a 5-10 minute walk). Do NOT return places that require driving.
       2. Exclude generic markers like "Public Restroom" or "Toilet" unless they are the only options. Specific businesses like "Starbucks", "McDonald's", "City Park", etc. are preferred.
       3. List the closest options first.
+      4. If a place is a business (like a restaurant), assume it has a restroom for customers.
 
       Provide a helpful, friendly summary of the best options found. 
       Format the summary with clear paragraph breaks (blank lines) between different recommendations to make it easy to read. 
