@@ -1,0 +1,86 @@
+import { GoogleGenAI } from "@google/genai";
+import { Coordinates, SearchResult, RestroomPlace, GroundingChunk } from '../types';
+
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+// Filter out generic markers that aren't specific businesses
+const isGenericRestroomTitle = (title: string): boolean => {
+  const genericTerms = [
+    'restroom', 'public restroom', 'bathroom', 'public bathroom', 
+    'toilet', 'public toilet', 'men\'s room', 'women\'s room', 
+    'wc', 'comfort station', 'lavatory', 'mens room', 'womens room'
+  ];
+  const lowerTitle = title.toLowerCase().trim();
+  return genericTerms.some(term => lowerTitle === term || lowerTitle === `public ${term}`);
+};
+
+export const findRestroomsNearby = async (coords: Coordinates): Promise<SearchResult> => {
+  try {
+    const model = 'gemini-2.5-flash';
+    const prompt = `
+      Find the nearest public restrooms or businesses (like cafes, fast food chains, bookstores, public parks, supermarkets) that are likely to have a public restroom within walking distance.
+      
+      CRITICAL INSTRUCTION: Exclude any results that are just generic markers like "Public Restroom" or "Toilet" unless they are the only options. We prefer specific businesses like "Starbucks", "McDonald's", "City Park", etc.
+
+      Provide a helpful, friendly summary of the best options found. 
+      Format the summary with clear paragraph breaks (blank lines) between different recommendations to make it easy to read. 
+      Do not stick all text together.
+    `;
+
+    const response = await ai.models.generateContent({
+      model: model,
+      contents: prompt,
+      config: {
+        tools: [{ googleMaps: {} }],
+        toolConfig: {
+          retrievalConfig: {
+            latLng: {
+              latitude: coords.latitude,
+              longitude: coords.longitude
+            }
+          }
+        }
+      },
+    });
+
+    const text = response.text || "No specific details found.";
+    
+    // Extract grounding chunks to build our structured list
+    const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks as GroundingChunk[] | undefined;
+    const places: RestroomPlace[] = [];
+
+    if (chunks) {
+      chunks.forEach((chunk) => {
+        if (chunk.maps) {
+          // Filter out generic titles if possible
+          if (!isGenericRestroomTitle(chunk.maps.title)) {
+            places.push({
+              title: chunk.maps.title,
+              uri: chunk.maps.uri,
+              source: 'maps',
+              address: chunk.maps.placeAnswerSources?.[0]?.reviewSnippets?.[0]?.content
+            });
+          }
+        } else if (chunk.web) {
+          places.push({
+            title: chunk.web.title,
+            uri: chunk.web.uri,
+            source: 'web'
+          });
+        }
+      });
+    }
+
+    // Deduplicate places based on URI
+    const uniquePlaces = Array.from(new Map(places.map(item => [item.uri, item])).values());
+
+    return {
+      textSummary: text,
+      places: uniquePlaces,
+    };
+
+  } catch (error) {
+    console.error("Error fetching restrooms:", error);
+    throw error;
+  }
+};

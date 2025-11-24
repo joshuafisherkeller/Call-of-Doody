@@ -1,0 +1,7 @@
+{
+  "name": "Call Of Doody 💩",
+  "description": "Find the nearest public restrooms and business-friendly facilities within walking distance using your current location.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
