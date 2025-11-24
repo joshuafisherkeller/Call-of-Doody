@@ -18,9 +18,14 @@ export const findRestroomsNearby = async (coords: Coordinates): Promise<SearchRe
   try {
     const model = 'gemini-2.5-flash';
     const prompt = `
-      Find the nearest public restrooms or businesses (like cafes, fast food chains, bookstores, public parks, supermarkets) that are likely to have a public restroom within walking distance.
+      I am currently located at Latitude: ${coords.latitude}, Longitude: ${coords.longitude}.
+
+      Find the ABSOLUTE NEAREST public restrooms or businesses (like cafes, fast food chains, bookstores, public parks, supermarkets) that likely have a restroom.
       
-      CRITICAL INSTRUCTION: Exclude any results that are just generic markers like "Public Restroom" or "Toilet" unless they are the only options. We prefer specific businesses like "Starbucks", "McDonald's", "City Park", etc.
+      CRITICAL INSTRUCTIONS: 
+      1. STRICTLY limit results to the immediate walking vicinity (within 500-800 meters or a 5-10 minute walk). Do NOT return places that require driving.
+      2. Exclude generic markers like "Public Restroom" or "Toilet" unless they are the only options. Specific businesses like "Starbucks", "McDonald's", "City Park", etc. are preferred.
+      3. List the closest options first.
 
       Provide a helpful, friendly summary of the best options found. 
       Format the summary with clear paragraph breaks (blank lines) between different recommendations to make it easy to read. 
