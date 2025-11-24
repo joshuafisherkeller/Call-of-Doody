@@ -63,7 +63,8 @@ export const findRestroomsNearby = async (coords: Coordinates): Promise<SearchRe
               title: chunk.maps.title,
               uri: chunk.maps.uri,
               source: 'maps',
-              address: chunk.maps.placeAnswerSources?.[0]?.reviewSnippets?.[0]?.content
+              // Note: Review snippets are not reliable addresses, so we omit address here 
+              // and let the user rely on the card title + "Get Directions"
             });
           }
         } else if (chunk.web) {
