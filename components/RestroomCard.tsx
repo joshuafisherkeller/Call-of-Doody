@@ -25,7 +25,7 @@ const RestroomCard: React.FC<RestroomCardProps> = ({ place }) => {
 
   return (
     <div className="bg-white rounded-3xl p-7 shadow-md border-2 border-transparent hover:border-primary/20 transition-all duration-200">
-      <div className="flex items-start gap-5 mb-5">
+      <div className={`flex items-start gap-5 ${place.address ? 'mb-5' : 'mb-8'}`}>
         <div className={`p-4 rounded-2xl ${getCategoryColor(place.title)} shrink-0`}>
           {getIcon(place.title)}
         </div>

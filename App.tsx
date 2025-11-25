@@ -4,7 +4,7 @@ import RestroomCard from './components/RestroomCard';
 import LoadingView from './components/LoadingView';
 import { findRestroomsNearby } from './services/geminiService';
 import { AppState, SearchResult, Coordinates } from './types';
-import { MapPinOff, RefreshCw, Sparkles, MapPin, AlertTriangle } from 'lucide-react';
+import { MapPinOff, RefreshCw, Sparkles, MapPin, AlertTriangle, Settings } from 'lucide-react';
 
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(AppState.IDLE);
@@ -35,14 +35,25 @@ const App: React.FC = () => {
       },
       (error) => {
         console.error("Geo Error", error);
-        setErrorMsg('Unable to retrieve your location. Please enable location permissions.');
+        let msg = 'Unable to retrieve your location.';
+        
+        // Handle specific error codes for better user guidance
+        if (error.code === error.PERMISSION_DENIED) {
+          msg = 'Permission denied. Please check your browser settings and allow location access for this site.';
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          msg = 'Location unavailable. Ensure your device GPS is on and has a clear signal.';
+        } else if (error.code === error.TIMEOUT) {
+          msg = 'Location request timed out. Please move to an open area or try again.';
+        }
+
+        setErrorMsg(msg);
         setErrorType('LOCATION');
         setAppState(AppState.ERROR);
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
+        timeout: 25000,       // Increased to 25s to allow GPS lock
+        maximumAge: 60000     // Accept cached positions up to 1 min old (faster)
       }
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -56,9 +67,9 @@ const App: React.FC = () => {
       setAppState(AppState.DISPLAY_RESULTS);
     } catch (err: any) {
       if (err.message && err.message.includes("API Key")) {
-        setErrorMsg("System Configuration Error: API Key missing.");
+        setErrorMsg("API Key missing. Please add the 'API_KEY' variable to your Vercel Environment Variables.");
       } else {
-        setErrorMsg('Failed to connect to the restroom finder service.');
+        setErrorMsg('Failed to connect to the restroom finder service. Please try again.');
       }
       setErrorType('CONNECTION');
       setAppState(AppState.ERROR);
@@ -66,9 +77,11 @@ const App: React.FC = () => {
   };
 
   const handleRetry = () => {
-    if (location) {
+    if (location && errorType === 'CONNECTION') {
+      // If we already have location but API failed, just retry API
       fetchRestrooms(location);
     } else {
+      // Full retry
       requestLocation();
     }
   };
@@ -120,13 +133,13 @@ const App: React.FC = () => {
               {errorType === 'LOCATION' ? (
                 <MapPinOff className="w-20 h-20 text-red-500" />
               ) : (
-                <AlertTriangle className="w-20 h-20 text-amber-500" />
+                <Settings className="w-20 h-20 text-amber-500" />
               )}
             </div>
             <h3 className="text-3xl font-bold text-slate-800 mb-4">
-              {errorType === 'LOCATION' ? 'Location Not Found' : 'Connection Issue'}
+              {errorType === 'LOCATION' ? 'Location Not Found' : 'Setup Required'}
             </h3>
-            <p className="text-xl text-slate-600 mb-10">{errorMsg}</p>
+            <p className="text-xl text-slate-600 mb-10 leading-relaxed">{errorMsg}</p>
             
             <div className="w-full space-y-4">
               <button
@@ -151,55 +164,33 @@ const App: React.FC = () => {
 
         {/* RESULTS STATE */}
         {appState === AppState.DISPLAY_RESULTS && searchResult && (
-          <div className="p-5 space-y-8 pb-32">
-            {/* AI Summary Section - Enlarged and whitespace handled */}
-            <div className="bg-white p-8 rounded-3xl border-2 border-indigo-100 shadow-sm">
-              <div className="flex items-start gap-5">
-                <div className="bg-indigo-100 p-3 rounded-xl shrink-0 mt-1">
-                  <Sparkles className="w-8 h-8 text-indigo-600" />
-                </div>
-                {/* whitespace-pre-wrap ensures newlines from Gemini are rendered as spaces/breaks */}
-                <div className="text-xl text-slate-800 leading-relaxed font-medium whitespace-pre-wrap">
-                   {searchResult.textSummary.replace(/\*/g, '')}
-                </div>
-              </div>
+          <div className="p-4 pb-10 space-y-6">
+            <div className="bg-white rounded-3xl p-6 shadow-sm border border-gray-100">
+               <div className="flex items-center gap-3 mb-4">
+                  <Sparkles className="text-accent w-6 h-6" />
+                  <h2 className="text-xl font-bold text-slate-800 uppercase tracking-wider">The Situation</h2>
+               </div>
+               <p className="text-xl text-slate-700 leading-relaxed whitespace-pre-wrap">
+                  {searchResult.textSummary}
+               </p>
             </div>
 
-            {/* List */}
-            <div className="space-y-6">
-               <div className="flex items-center justify-between px-2 pt-2">
-                 <h3 className="font-black text-slate-800 text-3xl">Nearby Spots</h3>
-                 <span className="text-base font-bold px-4 py-2 bg-green-100 text-green-700 rounded-full">
-                    {searchResult.places.length} found
-                 </span>
-               </div>
-              
-              {searchResult.places.length === 0 ? (
-                <div className="text-center py-20 text-gray-400 px-6">
-                  <p className="text-2xl font-medium">No specific businesses found nearby, but check the summary above for general advice.</p>
-                </div>
-              ) : (
-                searchResult.places.map((place, index) => (
-                  <RestroomCard key={`${place.uri}-${index}`} place={place} />
-                ))
-              )}
+            <div className="space-y-4">
+              <h2 className="text-xl font-bold text-slate-400 uppercase tracking-wider px-2">Top Recommendations</h2>
+              {searchResult.places.map((place, index) => (
+                <RestroomCard key={index} place={place} />
+              ))}
             </div>
+
+            <button
+              onClick={requestLocation}
+              className="w-full py-6 bg-gray-200 text-slate-600 text-xl font-bold rounded-2xl hover:bg-gray-300 transition-colors mt-8"
+            >
+              Scan Again
+            </button>
           </div>
         )}
       </main>
-
-      {/* Floating Action Button for Reset (Only visible in results) */}
-      {appState === AppState.DISPLAY_RESULTS && (
-        <div className="absolute bottom-8 right-6 z-50">
-           <button 
-            onClick={handleRetry}
-            className="bg-slate-900 text-white p-6 rounded-full shadow-2xl hover:bg-slate-800 transition-all active:scale-90 border-4 border-white"
-            aria-label="Search again"
-          >
-             <RefreshCw className="w-10 h-10" />
-           </button>
-        </div>
-      )}
     </div>
   );
 };
