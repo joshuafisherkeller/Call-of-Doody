@@ -15,6 +15,11 @@ const isGenericRestroomTitle = (title: string): boolean => {
 
 export const findRestroomsNearby = async (coords: Coordinates): Promise<SearchResult> => {
   try {
+    // Check for API Key immediately
+    if (!process.env.API_KEY) {
+      throw new Error("MISSING_API_KEY");
+    }
+
     // Initialize client inside the function to ensure process.env is ready and prevent top-level crashes
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const model = 'gemini-2.5-flash';
@@ -88,8 +93,11 @@ export const findRestroomsNearby = async (coords: Coordinates): Promise<SearchRe
       places: uniquePlaces,
     };
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error fetching restrooms:", error);
+    if (error.message === "MISSING_API_KEY") {
+        throw new Error("API Key is missing. Please add API_KEY to Vercel Environment Variables.");
+    }
     throw error;
   }
 };

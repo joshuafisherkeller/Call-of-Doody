@@ -4,17 +4,19 @@ import RestroomCard from './components/RestroomCard';
 import LoadingView from './components/LoadingView';
 import { findRestroomsNearby } from './services/geminiService';
 import { AppState, SearchResult, Coordinates } from './types';
-import { MapPinOff, RefreshCw, Sparkles } from 'lucide-react';
+import { MapPinOff, RefreshCw, Sparkles, MapPin, AlertTriangle } from 'lucide-react';
 
 const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(AppState.IDLE);
   const [searchResult, setSearchResult] = useState<SearchResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string>('');
+  const [errorType, setErrorType] = useState<'LOCATION' | 'CONNECTION'>('LOCATION');
   const [location, setLocation] = useState<Coordinates | null>(null);
 
   const requestLocation = useCallback(() => {
     setAppState(AppState.REQUESTING_LOCATION);
     setErrorMsg('');
+    setErrorType('LOCATION');
 
     if (!navigator.geolocation) {
       setErrorMsg('Geolocation is not supported by your browser');
@@ -34,6 +36,7 @@ const App: React.FC = () => {
       (error) => {
         console.error("Geo Error", error);
         setErrorMsg('Unable to retrieve your location. Please enable location permissions.');
+        setErrorType('LOCATION');
         setAppState(AppState.ERROR);
       },
       {
@@ -51,8 +54,13 @@ const App: React.FC = () => {
       const data = await findRestroomsNearby(coords);
       setSearchResult(data);
       setAppState(AppState.DISPLAY_RESULTS);
-    } catch (err) {
-      setErrorMsg('Failed to find restrooms nearby. Please try again.');
+    } catch (err: any) {
+      if (err.message && err.message.includes("API Key")) {
+        setErrorMsg("System Configuration Error: API Key missing.");
+      } else {
+        setErrorMsg('Failed to connect to the restroom finder service.');
+      }
+      setErrorType('CONNECTION');
       setAppState(AppState.ERROR);
     }
   };
@@ -62,6 +70,13 @@ const App: React.FC = () => {
       fetchRestrooms(location);
     } else {
       requestLocation();
+    }
+  };
+
+  const openGoogleMapsFallback = () => {
+    if (location) {
+      const url = `https://www.google.com/maps/search/public+restroom/@${location.latitude},${location.longitude},16z`;
+      window.open(url, '_blank');
     }
   };
 
@@ -101,17 +116,36 @@ const App: React.FC = () => {
         {/* ERROR STATE */}
         {appState === AppState.ERROR && (
           <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-            <div className="bg-red-100 p-8 rounded-full mb-8">
-              <MapPinOff className="w-20 h-20 text-red-500" />
+            <div className={`p-8 rounded-full mb-8 ${errorType === 'LOCATION' ? 'bg-red-100' : 'bg-amber-100'}`}>
+              {errorType === 'LOCATION' ? (
+                <MapPinOff className="w-20 h-20 text-red-500" />
+              ) : (
+                <AlertTriangle className="w-20 h-20 text-amber-500" />
+              )}
             </div>
-            <h3 className="text-3xl font-bold text-slate-800 mb-4">Location Not Found</h3>
-            <p className="text-xl text-slate-600 mb-12">{errorMsg}</p>
-            <button
-              onClick={requestLocation}
-              className="w-full py-6 bg-slate-800 text-white text-xl font-bold rounded-2xl hover:bg-slate-900 transition-colors shadow-lg"
-            >
-              Try Again
-            </button>
+            <h3 className="text-3xl font-bold text-slate-800 mb-4">
+              {errorType === 'LOCATION' ? 'Location Not Found' : 'Connection Issue'}
+            </h3>
+            <p className="text-xl text-slate-600 mb-10">{errorMsg}</p>
+            
+            <div className="w-full space-y-4">
+              <button
+                onClick={handleRetry}
+                className="w-full py-6 bg-slate-800 text-white text-xl font-bold rounded-2xl hover:bg-slate-900 transition-colors shadow-lg"
+              >
+                Try Again
+              </button>
+              
+              {location && (
+                <button
+                  onClick={openGoogleMapsFallback}
+                  className="w-full py-6 bg-white border-2 border-primary text-primary text-xl font-bold rounded-2xl hover:bg-sky-50 transition-colors flex items-center justify-center gap-3"
+                >
+                  <MapPin className="w-6 h-6" />
+                  Open in Google Maps
+                </button>
+              )}
+            </div>
           </div>
         )}
 
