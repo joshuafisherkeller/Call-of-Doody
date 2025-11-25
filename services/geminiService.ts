@@ -1,6 +1,34 @@
 import { GoogleGenAI } from "@google/genai";
 import { Coordinates, SearchResult, RestroomPlace, GroundingChunk } from '../types';
 
+// Helper to safely access environment variables across different build tools (Vite, Webpack, Next.js)
+const getApiKey = (): string | undefined => {
+  // 1. Check Vite (Standard for Vercel React deployments)
+  // We use string access to avoid linter/compiler errors if types aren't set up
+  try {
+    // @ts-ignore
+    if (import.meta && import.meta.env && import.meta.env.VITE_API_KEY) {
+      // @ts-ignore
+      return import.meta.env.VITE_API_KEY;
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  // 2. Check standard process.env (CRA, Next.js, Webpack)
+  try {
+    if (typeof process !== 'undefined' && process.env) {
+      if (process.env.REACT_APP_API_KEY) return process.env.REACT_APP_API_KEY;
+      if (process.env.NEXT_PUBLIC_API_KEY) return process.env.NEXT_PUBLIC_API_KEY;
+      if (process.env.API_KEY) return process.env.API_KEY;
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  return undefined;
+};
+
 // Filter out generic markers that aren't specific businesses
 const isGenericRestroomTitle = (title: string): boolean => {
   const genericTerms = [
@@ -15,13 +43,15 @@ const isGenericRestroomTitle = (title: string): boolean => {
 
 export const findRestroomsNearby = async (coords: Coordinates): Promise<SearchResult> => {
   try {
+    const apiKey = getApiKey();
+
     // Check for API Key immediately
-    if (!process.env.API_KEY) {
+    if (!apiKey) {
       throw new Error("MISSING_API_KEY");
     }
 
     // Initialize client inside the function to ensure process.env is ready and prevent top-level crashes
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const ai = new GoogleGenAI({ apiKey: apiKey });
     const model = 'gemini-2.5-flash';
     
     const prompt = `
@@ -96,7 +126,7 @@ export const findRestroomsNearby = async (coords: Coordinates): Promise<SearchRe
   } catch (error: any) {
     console.error("Error fetching restrooms:", error);
     if (error.message === "MISSING_API_KEY") {
-        throw new Error("API Key is missing. Please add API_KEY to Vercel Environment Variables.");
+        throw new Error("MISSING_API_KEY");
     }
     throw error;
   }

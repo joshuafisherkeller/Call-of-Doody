@@ -66,8 +66,8 @@ const App: React.FC = () => {
       setSearchResult(data);
       setAppState(AppState.DISPLAY_RESULTS);
     } catch (err: any) {
-      if (err.message && err.message.includes("API Key")) {
-        setErrorMsg("API Key missing. Please add the 'API_KEY' variable to your Vercel Environment Variables.");
+      if (err.message && err.message.includes("MISSING_API_KEY")) {
+        setErrorMsg("System Config Error: API Key missing. Please go to Vercel Settings > Environment Variables and add 'VITE_API_KEY' with your value.");
       } else {
         setErrorMsg('Failed to connect to the restroom finder service. Please try again.');
       }
